@@ -11,7 +11,8 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import os
+import pickle
 from copy import deepcopy
 import numpy as np
 from batchgenerators.dataloading import MultiThreadedAugmenter
@@ -34,7 +35,7 @@ default_3D_augmentation_params = {
     "do_scaling": True,
     "scale_range": (0.85, 1.25),
     "do_rotation": True,
-    "rotation_x": (-15./360 * 2. * np.pi, 15./360 * 2. * np.pi),
+    "rotation_x": (-15. / 360 * 2. * np.pi, 15./360 * 2. * np.pi),
     "rotation_y": (-15. / 360 * 2. * np.pi, 15. / 360 * 2. * np.pi),
     "rotation_z": (-15. / 360 * 2. * np.pi, 15. / 360 * 2. * np.pi),
     "random_crop": False,
@@ -52,17 +53,17 @@ default_3D_augmentation_params = {
     "p_rot": 0.2,
     "dummy_2D": False,
     "mask_was_used_for_normalization": False,
-    "all_segmentation_labels": None,  # used for pyramid
-    "move_last_seg_chanel_to_data": False,  # used for pyramid
+    "all_segmentation_labels": None, # used for pyramid
+    "move_last_seg_chanel_to_data": False, # used for pyramid
     "border_mode_data": "constant",
-    "advanced_pyramid_augmentations": False  # used for pyramid
+    "advanced_pyramid_augmentations": False # used for pyramid
 }
 
 default_2D_augmentation_params = deepcopy(default_3D_augmentation_params)
 
 default_2D_augmentation_params["elastic_deform_alpha"] = (0., 200.)
 default_2D_augmentation_params["elastic_deform_sigma"] = (9., 13.)
-default_2D_augmentation_params["rotation_x"] = (-180./360 * 2. * np.pi, 180./360 * 2. * np.pi)
+default_2D_augmentation_params["rotation_x"] = (-180. / 360 * 2. * np.pi, 180. / 360 * 2. * np.pi)
 
 # sometimes you have 3d data and a 3d net but cannot augment them properly in 3d due to anisotropy (which is currently
 # not supported in batchgenerators). In that case you can 'cheat' and transfer your 3d data into 2d data and
@@ -147,9 +148,9 @@ def get_default_augmentation(dataloader_train, dataloader_val, patch_size, param
     tr_transforms.append(RenameTransform('seg', 'target', True))
     tr_transforms.append(NumpyToTensor(['data', 'target'], 'float'))
     tr_transforms = Compose(tr_transforms)
-    #from batchgenerators.dataloading import SingleThreadedAugmenter
-    #batchgenerator_train = SingleThreadedAugmenter(dataloader_train, tr_transforms)
-    #import IPython;IPython.embed()
+    # from batchgenerators.dataloading import SingleThreadedAugmenter
+    # batchgenerator_train = SingleThreadedAugmenter(dataloader_train, tr_transforms)
+    # import IPython;IPython.embed()
 
     batchgenerator_train = MultiThreadedAugmenter(dataloader_train, tr_transforms, params.get('num_threads'), params.get("num_cached_per_thread"), seeds=seeds_train, pin_memory=pin_memory)
 
@@ -220,10 +221,9 @@ def get_no_augmentation(dataloader_train, dataloader_val, patch_size, params=def
 
 
 if __name__ == "__main__":
-    from nnunet.training.dataloading.dataset_loading import DataLoader2D, DataLoader3D, load_dataset
+    from nnunet.training.dataloading.dataset_loading import DataLoader3D, load_dataset
     from nnunet.paths import preprocessing_output_dir
-    import os
-    import pickle
+
     t = "Task02_Heart"
     p = os.path.join(preprocessing_output_dir, t)
     dataset = load_dataset(p, 0)

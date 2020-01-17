@@ -11,12 +11,13 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+import os
+import importlib
+import pkgutil
 
 import nnunet
 import torch
-from batchgenerators.utilities.file_and_folder_operations import *
-import importlib
-import pkgutil
+from batchgenerators.utilities.file_and_folder_operations import load_pickle, subfolders
 from nnunet.training.network_training.nnUNetTrainer import nnUNetTrainer
 
 
@@ -34,7 +35,7 @@ def recursive_find_trainer(folder, trainer_name, current_module):
         for importer, modname, ispkg in pkgutil.iter_modules(folder):
             if ispkg:
                 next_current_module = current_module + "." + modname
-                tr = recursive_find_trainer([join(folder[0], modname)], trainer_name, current_module=next_current_module)
+                tr = recursive_find_trainer([os.path.join(folder[0], modname)], trainer_name, current_module=next_current_module)
             if tr is not None:
                 break
 
@@ -55,7 +56,7 @@ def restore_model(pkl_file, checkpoint=None, train=False):
     info = load_pickle(pkl_file)
     init = info['init']
     name = info['name']
-    search_in = join(nnunet.__path__[0], "training", "network_training")
+    search_in = os.path.join(nnunet.__path__[0], "training", "network_training")
     tr = recursive_find_trainer([search_in], name, current_module="nnunet.training.network_training")
 
     if tr is None:
@@ -64,7 +65,7 @@ def restore_model(pkl_file, checkpoint=None, train=False):
         """
         try:
             import meddec
-            search_in = join(meddec.__path__[0], "model_training")
+            search_in = os.path.join(meddec.__path__[0], "model_training")
             tr = recursive_find_trainer([search_in], name, current_module="meddec.model_training")
         except ImportError:
             pass
@@ -93,7 +94,7 @@ def restore_model(pkl_file, checkpoint=None, train=False):
 
 
 def load_best_model_for_inference(folder):
-    checkpoint = join(folder, "model_best.model")
+    checkpoint = os.path.join(folder, "model_best.model")
     pkl_file = checkpoint + ".pkl"
     return restore_model(pkl_file, checkpoint, False)
 
@@ -109,17 +110,17 @@ def load_model_and_checkpoint_files(folder, folds=None):
     :return:
     """
     if isinstance(folds, str):
-        folds = [join(folder, "all")]
-        assert isdir(folds[0]), "no output folder for fold %s found" % folds
+        folds = [os.path.join(folder, "all")]
+        assert os.path.isdir(folds[0]), "no output folder for fold %s found" % folds
     elif isinstance(folds, (list, tuple)):
         if len(folds) == 1 and folds[0] == "all":
-            folds = [join(folder, "all")]
+            folds = [os.path.join(folder, "all")]
         else:
-            folds = [join(folder, "fold_%d" % i) for i in folds]
-        assert all([isdir(i) for i in folds]), "list of folds specified but not all output folders are present"
+            folds = [os.path.join(folder, "fold_%d" % i) for i in folds]
+        assert all([os.path.isdir(i) for i in folds]), "list of folds specified but not all output folders are present"
     elif isinstance(folds, int):
-        folds = [join(folder, "fold_%d" % folds)]
-        assert all([isdir(i) for i in folds]), "output folder missing for fold %d" % folds
+        folds = [os.path.join(folder, "fold_%d" % folds)]
+        assert all([os.path.isdir(i) for i in folds]), "output folder missing for fold %d" % folds
     elif folds is None:
         print("folds is None so we will automatically look for output folders (not using \'all\'!)")
         folds = subfolders(folder, prefix="fold")
@@ -127,19 +128,20 @@ def load_model_and_checkpoint_files(folder, folds=None):
     else:
         raise ValueError("Unknown value for folds. Type: %s. Expected: list of int, int, str or None", str(type(folds)))
 
-    trainer = restore_model(join(folds[0], "model_best.model.pkl"))
+    trainer = restore_model(os.path.join(folds[0], 'model_best.model.pkl'))
     trainer.output_folder = folder
     trainer.output_folder_base = folder
     trainer.update_fold(0)
     trainer.initialize(False)
-    all_best_model_files = [join(i, "model_best.model") for i in folds]
+    all_best_model_files = [os.path.join(i, "model_best.model") for i in folds]
     print("using the following model files: ", all_best_model_files)
     all_params = [torch.load(i, map_location=torch.device('cuda', torch.cuda.current_device())) for i in all_best_model_files]
     return trainer, all_params
 
 
-if __name__ == "__main__":
-    pkl = "/home/fabian/PhD/results/nnUNetV2/nnUNetV2_3D_fullres/Task04_Hippocampus/fold0/model_best.model.pkl"
+if __name__ == '__main__':
+    # FIXME replace hardcoded path
+    pkl = '/home/fabian/PhD/results/nnUNetV2/nnUNetV2_3D_fullres/Task04_Hippocampus/fold0/model_best.model.pkl'
     checkpoint = pkl[:-4]
     train = False
     trainer = restore_model(pkl, checkpoint, train)

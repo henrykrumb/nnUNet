@@ -49,10 +49,10 @@ class RemoveRandomConnectedComponentFromOneHotEncodingTransform(AbstractTransfor
                         for i in range(1, num_comp + 1):
                             component_ids.append(i)
                             component_sizes.append(np.sum(lab == i))
-                        component_ids = [i for i, j in zip(component_ids, component_sizes) if j < num_voxels*self.dont_do_if_covers_more_than_X_percent]
-                        #_ = component_ids.pop(np.argmax(component_sizes))
-                        #else:
-                        #    component_ids = list(range(1, num_comp + 1))
+                        component_ids = [i for i, j in zip(component_ids, component_sizes) if j < num_voxels * self.dont_do_if_covers_more_than_X_percent]
+                        # _ = component_ids.pop(np.argmax(component_sizes))
+                        # else:
+                        #     component_ids = list(range(1, num_comp + 1))
                         if len(component_ids) > 0:
                             random_component = np.random.choice(component_ids)
                             data[b, c][lab == random_component] = 0
@@ -76,7 +76,7 @@ class MoveSegAsOneHotToData(AbstractTransform):
     def __call__(self, **data_dict):
         origin = data_dict.get(self.key_origin)
         target = data_dict.get(self.key_target)
-        seg = origin[:, self.channel_id:self.channel_id+1]
+        seg = origin[:, self.channel_id:self.channel_id + 1]
         seg_onehot = np.zeros((seg.shape[0], len(self.all_seg_labels), *seg.shape[2:]), dtype=seg.dtype)
         for i, l in enumerate(self.all_seg_labels):
             seg_onehot[:, i][seg[:, 0] == l] = 1

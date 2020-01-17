@@ -1,5 +1,3 @@
-from multiprocessing.pool import Pool
-import matplotlib
 from nnunet.training.data_augmentation.default_data_augmentation import get_default_augmentation
 from nnunet.training.dataloading.dataset_loading import DataLoader3D, unpack_dataset
 from nnunet.evaluation.evaluator import aggregate_scores
@@ -8,10 +6,16 @@ from nnunet.network_architecture.neural_network import SegmentationNetwork
 from nnunet.paths import network_training_output_dir
 from nnunet.inference.segmentation_export import save_segmentation_nifti_from_softmax
 from batchgenerators.utilities.file_and_folder_operations import *
-import numpy as np
 from nnunet.utilities.one_hot_encoding import to_one_hot
+
+import os
+from multiprocessing.pool import Pool
 import shutil
+
+import matplotlib
 matplotlib.use("agg")
+
+import numpy as np
 
 
 class nnUNetTrainerCascadeFullRes(nnUNetTrainer):
@@ -101,7 +105,7 @@ class nnUNetTrainerCascadeFullRes(nnUNetTrainer):
             if isdir(self.folder_with_segs_from_prev_stage_for_train):
                 shutil.rmtree(self.folder_with_segs_from_prev_stage_for_train)
 
-            maybe_mkdir_p(self.folder_with_segs_from_prev_stage_for_train)
+            os.makedirs(self.folder_with_segs_from_prev_stage_for_train, exist_ok=True)
             segs_from_prev_stage_files = subfiles(self.folder_with_segs_from_prev_stage, suffix='.npz')
             for s in segs_from_prev_stage_files:
                 shutil.copy(s, self.folder_with_segs_from_prev_stage_for_train)
@@ -159,7 +163,7 @@ class nnUNetTrainerCascadeFullRes(nnUNetTrainer):
             self.do_split()
 
         output_folder = join(self.output_folder, validation_folder_name)
-        maybe_mkdir_p(output_folder)
+        os.makedirs(output_folder, exist_ok=True)
 
         if do_mirroring:
             mirror_axes = self.data_aug_params['mirror_axes']
@@ -200,12 +204,12 @@ class nnUNetTrainerCascadeFullRes(nnUNetTrainer):
             else:
                 softmax_fname = None
 
-            """There is a problem with python process communication that prevents us from communicating obejcts 
-            larger than 2 GB between processes (basically when the length of the pickle string that will be sent is 
-            communicated by the multiprocessing.Pipe object then the placeholder (\%i I think) does not allow for long 
-            enough strings (lol). This could be fixed by changing i to l (for long) but that would require manually 
-            patching system python code. We circumvent that problem here by saving softmax_pred to a npy file that will 
-            then be read (and finally deleted) by the Process. save_segmentation_nifti_from_softmax can take either 
+            """There is a problem with python process communication that prevents us from communicating obejcts
+            larger than 2 GB between processes (basically when the length of the pickle string that will be sent is
+            communicated by the multiprocessing.Pipe object then the placeholder (\%i I think) does not allow for long
+            enough strings (lol). This could be fixed by changing i to l (for long) but that would require manually
+            patching system python code. We circumvent that problem here by saving softmax_pred to a npy file that will
+            then be read (and finally deleted) by the Process. save_segmentation_nifti_from_softmax can take either
             filename or np.ndarray and will handle this automatically"""
             if np.prod(softmax_pred.shape) > (2e9 / 4 * 0.85):  # *0.85 just to be save
                 np.save(fname + ".npy", softmax_pred)

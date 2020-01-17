@@ -16,16 +16,16 @@ class nnUNetTrainerNoDA(nnUNetTrainer):
 
         if self.threeD:
             dl_tr = DataLoader3D(self.dataset_tr, self.patch_size, self.patch_size, self.batch_size,
-                                 False, oversample_foreground_percent=self.oversample_foreground_percent
-                                 , pad_mode="constant", pad_sides=self.pad_all_sides)
+                                 False, oversample_foreground_percent=self.oversample_foreground_percent,
+                                 pad_mode="constant", pad_sides=self.pad_all_sides)
             dl_val = DataLoader3D(self.dataset_val, self.patch_size, self.patch_size, self.batch_size, False,
                                   oversample_foreground_percent=self.oversample_foreground_percent,
                                   pad_mode="constant", pad_sides=self.pad_all_sides)
         else:
             dl_tr = DataLoader2D(self.dataset_tr, self.patch_size, self.patch_size, self.batch_size,
                                  transpose=self.plans.get('transpose_forward'),
-                                 oversample_foreground_percent=self.oversample_foreground_percent
-                                 , pad_mode="constant", pad_sides=self.pad_all_sides)
+                                 oversample_foreground_percent=self.oversample_foreground_percent,
+                                 pad_mode="constant", pad_sides=self.pad_all_sides)
             dl_val = DataLoader2D(self.dataset_val, self.patch_size, self.patch_size, self.batch_size,
                                   transpose=self.plans.get('transpose_forward'),
                                   oversample_foreground_percent=self.oversample_foreground_percent,

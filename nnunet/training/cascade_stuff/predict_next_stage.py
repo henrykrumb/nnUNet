@@ -11,16 +11,14 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import os
 import numpy as np
-from batchgenerators.utilities.file_and_folder_operations import *
 import argparse
-from nnunet.preprocessing.preprocessing import resample_data_or_seg
-from batchgenerators.utilities.file_and_folder_operations import maybe_mkdir_p
-import nnunet
-from nnunet.run.default_configuration import get_default_configuration
 from multiprocessing import Pool
 
+import nnunet
+from nnunet.preprocessing.preprocessing import resample_data_or_seg
+from nnunet.run.default_configuration import get_default_configuration
 from nnunet.training.model_restore import recursive_find_trainer
 from nnunet.training.network_training.nnUNetTrainer import nnUNetTrainer
 
@@ -32,8 +30,8 @@ def resample_and_save(predicted, target_shape, output_file):
 
 
 def predict_next_stage(trainer, stage_to_be_predicted_folder):
-    output_folder = join(pardir(trainer.output_folder), "pred_next_stage")
-    maybe_mkdir_p(output_folder)
+    output_folder = os.path.join(os.pardir(trainer.output_folder), "pred_next_stage")
+    os.makedirs(output_folder, exist_ok=True)
 
     process_manager = Pool(2)
     results = []
@@ -46,10 +44,10 @@ def predict_next_stage(trainer, stage_to_be_predicted_folder):
                                                                      trainer.data_aug_params['mirror_axes'],
                                                                      True, True, 2, trainer.patch_size, True)
         data_file_nofolder = data_file.split("/")[-1]
-        data_file_nextstage = join(stage_to_be_predicted_folder, data_file_nofolder)
+        data_file_nextstage = os.path.join(stage_to_be_predicted_folder, data_file_nofolder)
         data_nextstage = np.load(data_file_nextstage)['data']
         target_shp = data_nextstage.shape[1:]
-        output_file = join(output_folder, data_file_nextstage.split("/")[-1][:-4] + "_segFromPrevStage.npz")
+        output_file = os.path.join(output_folder, data_file_nextstage.split("/")[-1][:-4] + "_segFromPrevStage.npz")
         results.append(process_manager.starmap_async(resample_and_save, [(predicted, target_shp, output_file)]))
 
     _ = [i.get() for i in results]
@@ -78,7 +76,7 @@ if __name__ == "__main__":
     plans_file, folder_with_preprocessed_data, output_folder_name, dataset_directory, batch_dice, stage = \
         get_default_configuration("3d_lowres", task)
     
-    trainer_class = recursive_find_trainer([join(nnunet.__path__[0], "training", "network_training")], trainerclass,
+    trainer_class = recursive_find_trainer([os.path.join(nnunet.__path__[0], "training", "network_training")], trainerclass,
                                            "nnunet.training.network_training")
     
     if trainer_class is None:
@@ -87,7 +85,7 @@ if __name__ == "__main__":
         assert issubclass(trainer_class,
                           nnUNetTrainer), "network_trainer was found but is not derived from nnUNetTrainer"
     
-    trainer = trainer_class(plans_file, fold, folder_with_preprocessed_data,output_folder=output_folder_name,
+    trainer = trainer_class(plans_file, fold, folder_with_preprocessed_data, output_folder=output_folder_name,
                             dataset_directory=dataset_directory, batch_dice=batch_dice, stage=stage)
 
     trainer.initialize(False)
@@ -95,9 +93,9 @@ if __name__ == "__main__":
     trainer.do_split()
     trainer.load_best_checkpoint(train=False)
 
-    stage_to_be_predicted_folder = join(dataset_directory, trainer.plans['data_identifier'] + "_stage%d" % 1)
-    output_folder = join(pardir(trainer.output_folder), "pred_next_stage")
-    maybe_mkdir_p(output_folder)
+    stage_to_be_predicted_folder = os.path.join(dataset_directory, trainer.plans['data_identifier'] + "_stage%d" % 1)
+    output_folder = os.path.join(os.pardir(trainer.output_folder), "pred_next_stage")
+    os.makedirs(output_folder, exist_ok=True)
 
     predict_next_stage(trainer, stage_to_be_predicted_folder)
 

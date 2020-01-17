@@ -11,11 +11,11 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+import os
+import shutil
 
 import SimpleITK as sitk
 import numpy as np
-import shutil
-from batchgenerators.utilities.file_and_folder_operations import *
 from multiprocessing import Pool
 from collections import OrderedDict
 
@@ -133,7 +133,7 @@ class ImageCropper(object):
         self.num_threads = num_threads
 
         if self.output_folder is not None:
-            maybe_mkdir_p(self.output_folder)
+            os.makedirs(self.output_folder, exist_ok=True)
 
     @staticmethod
     def crop(data, properties, seg=None):
@@ -189,7 +189,7 @@ class ImageCropper(object):
             self.output_folder = output_folder
 
         output_folder_gt = os.path.join(self.output_folder, "gt_segmentations")
-        maybe_mkdir_p(output_folder_gt)
+        os.makedirs(output_folder_gt, exist_ok=True)
         for j, case in enumerate(list_of_files):
             if case[-1] is not None:
                 shutil.copy(case[-1], output_folder_gt)

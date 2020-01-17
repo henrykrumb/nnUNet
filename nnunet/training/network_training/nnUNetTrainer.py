@@ -1,26 +1,32 @@
+import os
+from collections import OrderedDict
+from multiprocessing import Pool
+
+import numpy as np
+
 import matplotlib
+matplotlib.use("agg")
+
+import torch
+from torch import nn
+from torch.optim import lr_scheduler
+
 from nnunet.training.network_training.network_trainer import NetworkTrainer
 from nnunet.network_architecture.neural_network import SegmentationNetwork
 from batchgenerators.utilities.file_and_folder_operations import *
 from nnunet.utilities.nd_softmax import softmax_helper
-import torch
-import numpy as np
 from nnunet.utilities.tensor_utilities import sum_tensor
-from torch.optim import lr_scheduler
+
 from nnunet.training.dataloading.dataset_loading import load_dataset, DataLoader3D, DataLoader2D, unpack_dataset
 from nnunet.training.loss_functions.dice_loss import DC_and_CE_loss
 from nnunet.network_architecture.generic_UNet import Generic_UNet
 from nnunet.network_architecture.initialization import InitWeights_He
-from torch import nn
 from nnunet.training.data_augmentation.default_data_augmentation import default_3D_augmentation_params, \
     default_2D_augmentation_params, get_default_augmentation, get_patch_size
 from nnunet.inference.segmentation_export import save_segmentation_nifti_from_softmax
 from nnunet.evaluation.evaluator import aggregate_scores
-from multiprocessing import Pool
 from nnunet.evaluation.metrics import ConfusionMatrix
 
-matplotlib.use("agg")
-from collections import OrderedDict
 
 
 class nnUNetTrainer(NetworkTrainer):
@@ -169,7 +175,7 @@ class nnUNetTrainer(NetworkTrainer):
         :return:
         """
 
-        maybe_mkdir_p(self.output_folder)
+        os.makedirs(self.output_folder, exist_ok=True)
 
         if force_load_plans or (self.plans is None):
             self.load_plans_file()
@@ -447,7 +453,7 @@ class nnUNetTrainer(NetworkTrainer):
             self.do_split()
 
         output_folder = join(self.output_folder, validation_folder_name)
-        maybe_mkdir_p(output_folder)
+        os.path.makedirs(output_folder, exist_ok=True)
 
         if do_mirroring:
             mirror_axes = self.data_aug_params['mirror_axes']

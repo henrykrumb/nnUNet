@@ -1,20 +1,21 @@
-from _warnings import warn
-import matplotlib
-from batchgenerators.utilities.file_and_folder_operations import *
+from batchgenerators.utilities.file_and_folder_operations import load_pickle, save_pickle
 from sklearn.model_selection import KFold
-matplotlib.use("agg")
 from time import time, sleep
 import torch
 import numpy as np
 from torch.optim import lr_scheduler
-import matplotlib.pyplot as plt
+import torch.backends.cudnn as cudnn
+from abc import abstractmethod
+
+from _warnings import warn
+import os
 import sys
 from collections import OrderedDict
 from datetime import datetime
-import torch.backends.cudnn as cudnn
-from abc import abstractmethod
-from datetime import datetime
 
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use("agg")
 
 try:
     from apex import amp
@@ -22,7 +23,7 @@ except ImportError:
     amp = None
 
 
-class NetworkTrainer(object):
+class NetworkTrainer:
     def __init__(self, deterministic=True, fp16=False):
         """
         A generic class that can train almost any neural network (RNNs excluded). It provides basic functionality such
@@ -123,8 +124,8 @@ class NetworkTrainer(object):
         This is a suggestion for if your dataset is a dictionary (my personal standard)
         :return:
         """
-        splits_file = join(self.dataset_directory, "splits_final.pkl")
-        if not isfile(splits_file):
+        splits_file = os.path.join(self.dataset_directory, 'splits_final.pkl')
+        if not os.path.isfile(splits_file):
             self.print_to_log_file("Creating new split...")
             splits = []
             all_keys_sorted = np.sort(list(self.dataset.keys()))
@@ -188,7 +189,7 @@ class NetworkTrainer(object):
             ax.legend()
             ax2.legend(loc=9)
 
-            fig.savefig(join(self.output_folder, "progress.png"))
+            fig.savefig(os.path.join(self.output_folder, "progress.png"))
             plt.close()
         except IOError:
             self.print_to_log_file("failed to plot: ", sys.exc_info())
@@ -202,9 +203,9 @@ class NetworkTrainer(object):
             args = ("%s:" % dt_object, *args)
 
         if self.log_file is None:
-            maybe_mkdir_p(self.output_folder)
+            os.makedirs(self.output_folder, exist_ok=True)
             timestamp = datetime.now()
-            self.log_file = join(self.output_folder, "training_log_%d_%d_%d_%02.0d_%02.0d_%02.0d.txt" %
+            self.log_file = os.path.join(self.output_folder, "training_log_%d_%d_%d_%02.0d_%02.0d_%02.0d.txt" %
                                          (timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute, timestamp.second))
             with open(self.log_file, 'w') as f:
                 f.write("Starting... \n")
@@ -255,19 +256,19 @@ class NetworkTrainer(object):
     def load_best_checkpoint(self, train=True):
         if self.fold is None:
             raise RuntimeError("Cannot load best checkpoint if self.fold is None")
-        self.load_checkpoint(join(self.output_folder, "model_best.model"), train=train)
+        self.load_checkpoint(os.path.join(self.output_folder, "model_best.model"), train=train)
 
     def load_latest_checkpoint(self, train=True):
-        if isfile(join(self.output_folder, "model_final_checkpoint.model")):
-            return self.load_checkpoint(join(self.output_folder, "model_final_checkpoint.model"), train=train)
-        if isfile(join(self.output_folder, "model_latest.model")):
-            return self.load_checkpoint(join(self.output_folder, "model_latest.model"), train=train)
+        if os.path.isfile(os.path.join(self.output_folder, "model_final_checkpoint.model")):
+            return self.load_checkpoint(os.path.join(self.output_folder, "model_final_checkpoint.model"), train=train)
+        if os.path.isfile(os.path.join(self.output_folder, "model_latest.model")):
+            return self.load_checkpoint(os.path.join(self.output_folder, "model_latest.model"), train=train)
         all_checkpoints = [i for i in os.listdir(self.output_folder) if i.endswith(".model") and i.find("_ep_") != -1]
         if len(all_checkpoints) == 0:
             return self.load_best_checkpoint(train=train)
         corresponding_epochs = [int(i.split("_")[-1].split(".")[0]) for i in all_checkpoints]
         checkpoint = all_checkpoints[np.argmax(corresponding_epochs)]
-        self.load_checkpoint(join(self.output_folder, checkpoint), train=train)
+        self.load_checkpoint(os.path.join(self.output_folder, checkpoint), train=train)
 
     def load_checkpoint(self, fname, train=True):
         self.print_to_log_file("loading checkpoint", fname, "train=", train)
@@ -335,7 +336,7 @@ class NetworkTrainer(object):
                  "But torch.backends.cudnn.benchmark is True as well and this will prevent deterministic training! "
                  "If you want deterministic then set benchmark=False")
 
-        maybe_mkdir_p(self.output_folder)
+        os.makedirs(self.output_folder, exist_ok=True)
 
         if not self.was_initialized:
             self.initialize(True)
@@ -348,8 +349,8 @@ class NetworkTrainer(object):
             # train one epoch
             self.network.train()
             for b in range(self.num_batches_per_epoch):
-                l = self.run_iteration(self.tr_gen, True)
-                train_losses_epoch.append(l)
+                loss = self.run_iteration(self.tr_gen, True)
+                train_losses_epoch.append(loss)
 
             self.all_tr_losses.append(np.mean(train_losses_epoch))
             self.print_to_log_file("train loss : %.4f" % self.all_tr_losses[-1])
@@ -359,8 +360,8 @@ class NetworkTrainer(object):
                 self.network.eval()
                 val_losses = []
                 for b in range(self.num_val_batches_per_epoch):
-                    l = self.run_iteration(self.val_gen, False, True)
-                    val_losses.append(l)
+                    loss = self.run_iteration(self.val_gen, False, True)
+                    val_losses.append(loss)
                 self.all_val_losses.append(np.mean(val_losses))
                 self.print_to_log_file("val loss (train=False): %.4f" % self.all_val_losses[-1])
 
@@ -369,8 +370,8 @@ class NetworkTrainer(object):
                     # validation with train=True
                     val_losses = []
                     for b in range(self.num_val_batches_per_epoch):
-                        l = self.run_iteration(self.val_gen, False)
-                        val_losses.append(l)
+                        loss = self.run_iteration(self.val_gen, False)
+                        val_losses.append(loss)
                     self.all_val_losses_tr_mode.append(np.mean(val_losses))
                     self.print_to_log_file("val loss (train=True): %.4f" % self.all_val_losses_tr_mode[-1])
 
@@ -386,12 +387,12 @@ class NetworkTrainer(object):
             self.epoch += 1
             self.print_to_log_file("This epoch took %f s\n" % (epoch_end_time-epoch_start_time))
 
-        self.save_checkpoint(join(self.output_folder, "model_final_checkpoint.model"))
+        self.save_checkpoint(os.path.join(self.output_folder, "model_final_checkpoint.model"))
         # now we can delete latest as it will be identical with final
-        if isfile(join(self.output_folder, "model_latest.model")):
-            os.remove(join(self.output_folder, "model_latest.model"))
-        if isfile(join(self.output_folder, "model_latest.model.pkl")):
-            os.remove(join(self.output_folder, "model_latest.model.pkl"))
+        if os.path.isfile(os.path.join(self.output_folder, "model_latest.model")):
+            os.remove(os.path.join(self.output_folder, "model_latest.model"))
+        if os.path.isfile(os.path.join(self.output_folder, "model_latest.model.pkl")):
+            os.remove(os.path.join(self.output_folder, "model_latest.model.pkl"))
 
     def maybe_update_lr(self):
         # maybe update learning rate
@@ -413,8 +414,8 @@ class NetworkTrainer(object):
         if self.epoch % self.save_every == (self.save_every - 1):
             self.print_to_log_file("saving scheduled checkpoint file...")
             if not self.save_latest_only:
-                self.save_checkpoint(join(self.output_folder, "model_ep_%03.0d.model" % (self.epoch + 1)))
-            self.save_checkpoint(join(self.output_folder, "model_latest.model"))
+                self.save_checkpoint(os.path.join(self.output_folder, "model_ep_%03.0d.model" % (self.epoch + 1)))
+            self.save_checkpoint(os.path.join(self.output_folder, "model_latest.model"))
             self.print_to_log_file("done")
 
     def update_eval_criterion_MA(self):
@@ -431,7 +432,7 @@ class NetworkTrainer(object):
         else:
             if len(self.all_val_eval_metrics) == 0:
                 """
-                We here use alpha * old - (1 - alpha) * new because new in this case is the vlaidation loss and lower 
+                We here use alpha * old - (1 - alpha) * new because new in this case is the vlaidation loss and lower
                 is better, so we need to negate it. 
                 """
                 self.val_eval_criterion_MA = self.val_eval_criterion_alpha * self.val_eval_criterion_MA - (
@@ -466,7 +467,7 @@ class NetworkTrainer(object):
             if self.val_eval_criterion_MA > self.best_val_eval_criterion_MA:
                 self.best_val_eval_criterion_MA = self.val_eval_criterion_MA
                 self.print_to_log_file("saving best epoch checkpoint...")
-                self.save_checkpoint(join(self.output_folder, "model_best.model"))
+                self.save_checkpoint(os.path.join(self.output_folder, "model_best.model"))
 
             # Now see if the moving average of the train loss has improved. If yes then reset patience, else
             # increase patience
@@ -531,7 +532,7 @@ class NetworkTrainer(object):
 
         output = self.network(data)
         del data
-        l = self.loss(output, target)
+        loss = self.loss(output, target)
 
         if run_online_evaluation:
             self.run_online_evaluation(output, target)
@@ -540,13 +541,13 @@ class NetworkTrainer(object):
 
         if do_backprop:
             if not self.fp16 or amp is None:
-                l.backward()
+                loss.backward()
             else:
-                with amp.scale_loss(l, self.optimizer) as scaled_loss:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
             self.optimizer.step()
 
-        return l.detach().cpu().numpy()
+        return loss.detach().cpu().numpy()
 
     def run_online_evaluation(self, *args, **kwargs):
         """
@@ -616,6 +617,6 @@ class NetworkTrainer(object):
         fig = plt.figure()
         plt.xscale('log')
         plt.plot(lrs[10:-5], losses[10:-5])
-        plt.savefig(join(self.output_folder, "lr_finder.png"))
+        plt.savefig(os.path.join(self.output_folder, "lr_finder.png"))
         plt.close()
         return log_lrs, losses
